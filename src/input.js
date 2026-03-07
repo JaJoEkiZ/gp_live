@@ -1,10 +1,11 @@
 /**
  * GP_LIVE // SYS.CTRL
- * input.js — keyboard and gamepad input handlers
+ * input.js — keyboard, gamepad and pointer input handlers
  *
- * Author  : KRANK
- * Version : 0.1.0
- * License : MIT
+ * Author      : KRANK
+ * Modified by : JaJo_EkiZ — click/touch support on key buttons (v0.2.0)
+ * Version     : 0.2.0
+ * License     : MIT
  *
  * Both handlers share the same onUpdate callback signature:
  *   onUpdate(group: string, key: string) → void
@@ -18,10 +19,6 @@ import { KEY_MAPS } from './constants.js';
 // ── Keyboard ─────────────────────────────────────────────────────────────────
 
 export class KeyboardHandler {
-    /**
-     * @param {object}   state    Shared mutable state object.
-     * @param {Function} onUpdate Callback fired on every recognised key press.
-     */
     constructor(state, onUpdate) {
         this._state    = state;
         this._onUpdate = onUpdate;
@@ -39,6 +36,7 @@ export class KeyboardHandler {
             if (idx === -1) return false;
             this._state[FIELD[group]] = idx;
             this._onUpdate(group, key);
+            this._highlightKey(group, idx);   // refleja el click visualmente
             return true;
         };
 
@@ -48,10 +46,68 @@ export class KeyboardHandler {
             e.preventDefault();
             this._state.spaceTrig = (this._state.spaceTrig + 1) % 255;
             this._onUpdate('space', ' ');
+            this._flashSpace();
         }
     }
-}
 
+    // ── Click binding ────────────────────────────────────────────────────────
+
+    /**
+     * Engancha los listeners de click a los botones ya renderizados en el DOM.
+     * Llamar después de que el HTML esté poblado.
+     */
+    bindClickTargets() {
+        const FIELD = { palettes: 'palette', patterns: 'pattern', effects: 'effect', loops: 'loop' };
+        const ROWS  = {
+            palettes : document.getElementById('keys-palettes'),
+            patterns : document.getElementById('keys-patterns'),
+            effects  : document.getElementById('keys-effects'),
+            loops    : document.getElementById('keys-loops'),
+        };
+
+        for (const [group, row] of Object.entries(ROWS)) {
+            if (!row) continue;
+            row.addEventListener('click', (e) => {
+                const btn = e.target.closest('[data-idx]');
+                if (!btn) return;
+                const idx = parseInt(btn.dataset.idx, 10);
+                const key = KEY_MAPS[group][idx];
+                this._state[FIELD[group]] = idx;
+                this._onUpdate(group, key);
+                this._highlightKey(group, idx);
+            });
+        }
+
+        // Spacebar / burst
+        const spaceBtn = document.getElementById('key-space');
+        if (spaceBtn) {
+            spaceBtn.addEventListener('click', () => {
+                this._state.spaceTrig = (this._state.spaceTrig + 1) % 255;
+                this._onUpdate('space', ' ');
+                this._flashSpace();
+            });
+        }
+    }
+
+    // ── Visual feedback ──────────────────────────────────────────────────────
+
+    _highlightKey(group, activeIdx) {
+        const rowId = { palettes: 'keys-palettes', patterns: 'keys-patterns',
+                        effects:  'keys-effects',  loops:    'keys-loops' }[group];
+        const row = document.getElementById(rowId);
+        if (!row) return;
+        row.querySelectorAll('[data-idx]').forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.idx, 10) === activeIdx);
+        });
+    }
+
+    _flashSpace() {
+        const btn = document.getElementById('key-space');
+        if (!btn) return;
+        btn.classList.add('active');
+        setTimeout(() => btn.classList.remove('active'), 120);
+    }
+}
 // ── Gamepad ──────────────────────────────────────────────────────────────────
 
 export class GamepadHandler {
