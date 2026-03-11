@@ -49,6 +49,7 @@ export class SabTransport {
         v[SAB_FIELDS.loop] = state.loop;
         v[SAB_FIELDS.spaceTrig] = state.spaceTrig;
         v[SAB_FIELDS.band] = state.band;       // ← v0.4.0
+        v[SAB_FIELDS.burstType] = state.burstType;
     }
 
     /** Read the SAB into a state object (projector side). */
@@ -65,5 +66,6 @@ export class SabTransport {
             state.freqs[i] = v[SAB_FIELDS.freqsStart + i];
         }
         state.band = v[SAB_FIELDS.band];              // ← v0.4.0
+        state.burstType = v[SAB_FIELDS.burstType];
     }
 }

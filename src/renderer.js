@@ -429,7 +429,8 @@ export class Renderer {
         // Spawn a new burst on spacebar
         if (spaceTrig !== this._lastSpaceTrig) {
             this._lastSpaceTrig = spaceTrig;
-            const type = Math.floor(Math.random() * 5);
+            // Use state.burstType if available, otherwise random fallback
+            const type = state.burstType ?? Math.floor(Math.random() * 5);
             const seed = Math.floor(Math.random() * 65535);
             this._vectors.push({
                 x: Math.random() * cw, y: Math.random() * ch,

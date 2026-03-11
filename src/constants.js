@@ -4,7 +4,9 @@
  *
  * Author      : KRANK
  * Modified by : JaJo_EkiZ — bass/mid/high band fields in state + SAB (v0.3.0)
- * Version     : 0.3.0
+ *                          — activeBands selection + state.band (v0.4.0)
+ *                          — seqState per group (v0.5.0)
+ * Version     : 0.5.0
  * License     : MIT
  */
 
@@ -18,8 +20,6 @@ export const KEY_MAPS = Object.freeze({
 });
 
 // ── SharedArrayBuffer layout ─────────────────────────────────────────────────
-// Byte offsets in the SAB. freqsStart occupies 16 consecutive bytes (indices 2–17).
-// bass/mid/high added at 23–25.
 
 export const SAB_FIELDS = Object.freeze({
     sync: 0,
@@ -30,18 +30,16 @@ export const SAB_FIELDS = Object.freeze({
     effect: 20,
     loop: 21,
     spaceTrig: 22,
-    bass: 23,  // ← v0.3.0
-    mid: 24,  // ← v0.3.0
-    high: 25,  // ← v0.3.0
-    band: 26,  // ← v0.4.0  active-selection average
+    bass: 23,
+    mid: 24,
+    high: 25,
+    band: 26,
+    burstType: 27,
 });
 
-export const SAB_SIZE = 64;  // bytes; headroom for future fields
+export const SAB_SIZE = 64;
 
 // ── Mutable state factory ────────────────────────────────────────────────────
-// Returns a fresh plain-object state. Both BackendController and
-// ProjectorController hold their own copy; they are kept in sync via SAB or
-// postMessage depending on browser support.
 
 export const createState = () => ({
     sync: 0,
@@ -52,28 +50,42 @@ export const createState = () => ({
     effect: 0,
     loop: 3,
     spaceTrig: 0,
+    burstType: 0,
     gain: 1.0,
     bass: 0,
     mid: 0,
     high: 0,
     band: 0,
-    activeBand: null,   // null = none selected → band = 0
-    useMainGain: false,  // true = band tracks vol (master gain override)
+    activeBands: new Array(16).fill(true),
+
+    // ── Sequencer state (v0.5.0) ─────────────────────────────────────────────
+    // One entry per group. binIdx=-1 means sequencer is off for that group.
+    // threshold: 0..255, cooldownMs: minimum ms between steps.
+    // Threshold is adaptive — computed per-frame by SequencerEngine, not stored here.
+    seqState: {
+        palettes: { active: false, binIdx: -1, step: 0, lastTrigMs: 0 },
+        patterns: { active: false, binIdx: -1, step: 0, lastTrigMs: 0 },
+        effects: { active: false, binIdx: -1, step: 0, lastTrigMs: 0 },
+        loops: { active: false, binIdx: -1, step: 0, lastTrigMs: 0 },
+        space: { active: false, binIdx: -1, step: 0, lastTrigMs: 0 },
+    },
 });
 
 // ── Band bin ranges ──────────────────────────────────────────────────────────
-// Maps each band to a slice of the 16-bin freqs array.
-// Used by AudioEngine.read() and BackendUI spectrum renderer.
 
 export const BAND_RANGES = Object.freeze({
-    bass: { start: 0, end: 5 },   // bins 0–4
-    mid: { start: 5, end: 11 },   // bins 5–10
-    high: { start: 11, end: 16 },   // bins 11–15
+    bass: { start: 0, end: 5 },
+    mid: { start: 5, end: 11 },
+    high: { start: 11, end: 16 },
 });
 
+// ── Sequencer cooldown (ms) ──────────────────────────────────────────────────
+// Minimum time between steps regardless of bin activity.
+// Prevents double-triggers on a single loud peak.
+
+export const SEQ_COOLDOWN_MS = 120;
+
 // ── Visual palettes ──────────────────────────────────────────────────────────
-// Ten palettes addressable by keys 1–0.
-// Each entry: { bg, c1 (primary), c2 (secondary) }
 
 export const PALETTES = Object.freeze([
     { bg: '#050505', c1: '#00ffcc', c2: '#ff0055' },  // 1  Cyberpunk
@@ -89,7 +101,5 @@ export const PALETTES = Object.freeze([
 ]);
 
 // ── Loop / time speed table ──────────────────────────────────────────────────
-// Indexed by state.loop (0–6). Values are time-step multipliers applied each
-// render frame. -1 = reverse.
 
 export const SPEED_MAP = Object.freeze([0, 0.2, 0.5, 1, 2, 4, -1]);
